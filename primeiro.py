@@ -20,18 +20,32 @@ if "dados_ida" not in st.session_state:
 # 2. INTERFACE E SEGURANÇA
 # ==========================================
 st.set_page_config(page_title="Caronas Handebol", layout="wide")
-st.title("🚗 Sistema de Caronas Handebol")
+col_esq, col_centro, col_dir = st.columns([1, 2, 1])
 
-st.sidebar.header("🔐 Acesso Restrito")
-senha_digitada = st.sidebar.text_input("Digite a senha do time", type="password")
+with col_centro:
+    st.title("🔐 Acesso Restrito")
+    st.write("Bem-vinda ao sistema financeiro do Handebol Feminino.")
+    
+    # Campo de senha grande e visível no centro
+    senha_digitada = st.text_input("Digite a senha do time para entrar:", type="password")
 
-if senha_digitada == st.secrets["SENHA_TIME"]:
-    st.sidebar.success("Acesso liberado!")
-    aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
-    "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"])
-else:
-    st.warning("Aguardando senha...")
-    st.stop()
+    if senha_digitada == st.secrets["SENHA_TIME"]:
+        st.success("Acesso liberado! Carregando sistema...")
+        # Se a senha estiver correta, o código continua para baixo
+    elif senha_digitada == "":
+        st.info("Aguardando senha...")
+        st.stop() # Para o código aqui até a senha ser digitada
+    else:
+        st.error("Senha incorreta! Tente novamente.")
+        st.stop() # Para o código aqui se a senha estiver errada
+
+st.divider()
+st.title("🚗 Gestão Handebol Feminino")
+st.write("Amo vc mocinha linda❤️")        
+
+aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
+    "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"
+])
 
 # ==========================================
 # ABA 1: LANÇAMENTOS (Onde a mágica acontece)

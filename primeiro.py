@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 
+st.set_page_config(page_title="Caronas Handebol", layout="wide")
+
 # ==========================================
 # 1. SETUP E CONEXÃO
 # ==========================================

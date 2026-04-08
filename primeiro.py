@@ -10,12 +10,8 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-MENINAS_DO_TIME = [
-    "arritmia", "buh", "carreta", "clt", "curupira", "jenga", 
-    "lela", "maju", "maritaca", "md", "mestica", "nicolle", 
-    "parca", "prikita", "proerd", "sauva", "sofia", "solda"
-]
-MENINAS_DO_TIME.sort()
+# O Python agora pega a lista direto dos Secrets e já organiza por ordem alfabética
+MENINAS_DO_TIME = list(st.secrets["MENINAS_DO_TIME"])
 
 # ==========================================
 # 2. INTERFACE E SEGURANÇA
@@ -32,7 +28,7 @@ if senha_digitada == st.secrets["SENHA_TIME"]:
     st.write("olá mocita, amo vc ❤️")
     st.divider()
     
-    aba_lancamento, aba_resumo = st.tabs(["📝 Lançamentos do Dia", "📊 Resumo Mensal"])
+    aba_lancamento, aba_resumo, aba_detalhes = st.tabs(["📝 Lançamentos do Dia", "📊 Resumo Mensal","🔍 Detalhes"])
 else:
     if senha_digitada != "":
         st.error("Senha incorreta!")
@@ -125,6 +121,7 @@ with aba_resumo:
     df = pd.DataFrame(response.data)
     
     if not df.empty:
+        df["nome"] = pd.Categorical(df["nome"], categories=MENINAS_DO_TIME, ordered=True)
         # Agrupa os valores por nome
         resumo = df.groupby("nome").agg({
             "valor_a_pagar": "sum",
@@ -152,3 +149,49 @@ with aba_resumo:
         supabase.table("caixa_mensal").delete().neq("id", 0).execute()
         st.success("Banco de dados zerado!")
         st.rerun()
+
+        # ==========================================
+# ABA 3: DETALHES (HISTÓRICO COMPLETO)
+# ==========================================
+with aba_detalhes:
+    st.header("🔍 Detalhamento dos Lançamentos")
+    st.write("Confira aqui cada linha salva no banco de dados para auditoria.")
+
+    # Busca os dados novamente para garantir que está atualizado
+    response_detalhes = supabase.table("caixa_mensal").select("*").execute()
+    df_detalhes = pd.DataFrame(response_detalhes.data)
+
+    if not df_detalhes.empty:
+        # 1. Organizar para que os lançamentos mais recentes apareçam no topo
+        # (Usamos o ID ou a Data para isso)
+        df_detalhes = df_detalhes.sort_values(by=["data", "id"], ascending=[False, False])
+
+        # 2. Deixar os nomes na ordem da sua planilha também aqui (opcional)
+        df_detalhes["nome"] = pd.Categorical(df_detalhes["nome"], categories=MENINAS_DO_TIME, ordered=True)
+
+        # 3. Exibir a tabela formatada
+        st.dataframe(
+            df_detalhes,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": None, # Esconde o ID que é só controle do banco
+                "data": st.column_config.TextColumn("Data"),
+                "tipo_viagem": "Viagem",
+                "nome": "Nome",
+                "papel": "Papel",
+                "valor_a_pagar": st.column_config.NumberColumn("A Pagar", format="R$ %.2f"),
+                "valor_a_receber": st.column_config.NumberColumn("A Receber", format="R$ %.2f"),
+            }
+        )
+        
+        # Botão extra para baixar os dados caso você queira abrir no Excel depois
+        csv = df_detalhes.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Baixar tudo em CSV (Excel)",
+            data=csv,
+            file_name='detalhes_caronas_handebol.csv',
+            mime='text/csv',
+        )
+    else:
+        st.info("Nenhum dado encontrado para detalhamento.")

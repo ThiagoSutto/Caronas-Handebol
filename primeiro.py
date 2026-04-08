@@ -34,7 +34,27 @@ MENINAS_DO_TIME.sort()
 # ==========================================
 st.set_page_config(page_title="Caronas Handebol", layout="wide")
 st.title("🚗 Sistema de Caronas Handebol")
-st.write("olá mocita, amo vc ❤️")
+
+# --- BLOCO DE SEGURANÇA (NOVIDADE) ---
+st.sidebar.header("🔐 Acesso Restrito")
+senha_digitada = st.sidebar.text_input("Digite a senha do time", type="password")
+
+# Defina aqui a sua senha!
+SENHA_CORRETA = "handebol2024" 
+
+if senha_digitada == SENHA_CORRETA:
+    st.sidebar.success("Acesso liberado!")
+    st.write("olá mocita, amo vc ❤️")
+else:
+    if senha_digitada == "":
+        st.warning("Aguardando senha na barra lateral...")
+    else:
+        st.error("Senha incorreta! O acesso foi bloqueado.")
+    
+    st.info("Peça a senha para a administradora do sistema.")
+    st.stop() # Mata o processo aqui, nada abaixo disso será executado
+# -------------------------------------
+
 st.divider()
 
 aba_lancamento, aba_resumo = st.tabs(["📝 Lançamentos do Dia", "📊 Resumo Mensal"])
@@ -71,18 +91,15 @@ with aba_lancamento:
         if len(pessoas_repetidas) > 0:
             st.error(f"⚠️ ERRO: Nomes duplicados: **{', '.join(pessoas_repetidas)}**")
         
-        # SÓ CALCULA SE TIVER PELO MENOS 1 CARRO E NENHUM ERRO
         elif len(lista_de_carros) > 0:
-            
             num_motoristas = len(lista_de_carros)
             bolo_total = 0.0
             
-            # MATEMÁTICA DA PLANILHA (Motorista conta na divisão do carro)
             for carro in lista_de_carros:
                 num_passageiras = len(carro['passageiras'])
                 
                 if num_passageiras > 0:
-                    pessoas_no_carro = num_passageiras + 1 # +1 da motorista
+                    pessoas_no_carro = num_passageiras + 1
                     custo_da_divisao = 3.50 / pessoas_no_carro
                     
                     arrecadado_neste_carro = custo_da_divisao * num_passageiras
@@ -99,7 +116,6 @@ with aba_lancamento:
             st.write(f"Cada passageira paga a sua parte da divisão do carro.")
             st.write(f"Cada motorista recebe a divisão da caixinha: **R$ {ganho_por_motorista:.2f}**")
 
-            # SALVAR NO BANCO
             if st.button("💾 Salvar no Banco de Dados", type="primary"):
                 conexao = conectar_banco()
                 cursor = conexao.cursor()
@@ -110,13 +126,11 @@ with aba_lancamento:
                     passags = carro['passageiras']
                     custo_passageira = carro['custo_individual'] 
 
-                    # Salva a Motorista
                     cursor.execute(
                         "INSERT INTO caixa_mensal (data, tipo_viagem, nome, papel, valor_a_pagar, valor_a_receber) VALUES (?, ?, ?, ?, ?, ?)", 
                         (data_texto, tipo_viagem, mot, "Motorista", 0.0, ganho_por_motorista)
                     )
 
-                    # Salva as Passageiras
                     if len(passags) > 0:
                         for p in passags:
                             cursor.execute(
@@ -126,25 +140,18 @@ with aba_lancamento:
                 
                 conexao.commit()
                 conexao.close()
-                st.success("✅ Viagem salva! Vá para a aba 'Resumo Mensal' para ver o balanço.")
+                st.success("✅ Viagem salva!")
                 st.balloons()
 
 # ==========================================
-# ABA 2: RESUMO MENSAL E CÁLCULO FINAL
+# ABA 2: RESUMO MENSAL
 # ==========================================
 with aba_resumo:
     st.header("Fechamento do Caixa")
-    st.write("Veja quem deve pagar e quem deve receber baseado em todas as caronas salvas.")
+    st.write("Veja quem deve pagar e quem deve receber.")
     
     conexao = conectar_banco()
-    query = '''
-        SELECT 
-            nome AS Nome, 
-            SUM(valor_a_pagar) AS "Total a Pagar", 
-            SUM(valor_a_receber) AS "Total a Receber" 
-        FROM caixa_mensal 
-        GROUP BY nome
-    '''
+    query = 'SELECT nome AS Nome, SUM(valor_a_pagar) AS "Total a Pagar", SUM(valor_a_receber) AS "Total a Receber" FROM caixa_mensal GROUP BY nome'
     
     tabela_resumo = pd.read_sql_query(query, conexao)
     conexao.close()
@@ -163,23 +170,15 @@ with aba_resumo:
             }
         )
     else:
-        st.info("Nenhuma carona foi registrada no banco de dados ainda.")
+        st.info("Nenhuma carona registrada.")
 
-    # ==========================================
-    # BOTÃO DE ZERAR O BANCO DE DADOS
-    # ==========================================
-    st.divider() # Cria uma linha separadora
+    st.divider()
     st.subheader("⚠️ Zona de Perigo")
     
-    # st.button devolve "Verdadeiro" quando é clicado
     if st.button("🗑️ Apagar Todos os Dados", type="secondary"):
         conexao = conectar_banco()
         cursor = conexao.cursor()
-        
-        # Comando SQL que deleta todas as linhas da tabela
         cursor.execute("DELETE FROM caixa_mensal") 
-        
         conexao.commit()
         conexao.close()
-        
-        st.success("Tudo apagado com sucesso! Atualize a página (F5) para zerar a tabela.")
+        st.success("Tudo apagado! Atualize (F5).")

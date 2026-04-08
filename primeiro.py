@@ -34,6 +34,7 @@ MENINAS_DO_TIME.sort()
 # ==========================================
 st.set_page_config(page_title="Caronas Handebol", layout="wide")
 st.title("🚗 Sistema de Caronas Handebol")
+st.write("olá mocita, amo vc ❤️")
 st.divider()
 
 aba_lancamento, aba_resumo = st.tabs(["📝 Lançamentos do Dia", "📊 Resumo Mensal"])

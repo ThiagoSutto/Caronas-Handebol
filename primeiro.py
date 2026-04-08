@@ -48,9 +48,10 @@ with aba_lancamento:
         
         lista_de_carros = []
         todas_as_pessoas = []
+        num_carros = st.number_input("Quantos carros foram nessa viagem?", 1, 6, value=2)
 
-        for i in range(1, 6):
-            with st.expander(f"🚙 Carro {i} - {tipo_viagem}"):
+        for i in range(1, num_carros + 1):
+            with st.expander(f"🚙 Carro {i}", expanded=True):
                 motorista = st.selectbox("Motorista", options=[""] + MENINAS_DO_TIME, key=f"mot_{i}")
                 opcoes_passageiras = [nome for nome in MENINAS_DO_TIME if nome != motorista]
                 passageiras = st.multiselect("Passageiras", options=opcoes_passageiras, max_selections=5, key=f"pass_{i}")

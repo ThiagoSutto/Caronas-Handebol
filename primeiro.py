@@ -16,7 +16,10 @@ MENINAS_DO_TIME = sorted(list(st.secrets["MENINAS_DO_TIME"]))
 
 # Inicializa a memória do site (Session State)
 if "autenticado" not in st.session_state:
-    st.session_state.autenticadox = False
+    st.session_state.autenticado = False
+
+if "dados_ida" not in st.session_state:
+    st.session_state.dados_ida = []    
 
 # ==========================================
 # 2. INTERFACE E SEGURANÇA
@@ -40,18 +43,15 @@ if not st.session_state.autenticado:
 
 else:
     # --- O SISTEMA (SÓ APARECE DEPOIS DO LOGIN) ---
-    
+    st.title("🚗 Gestão Handebol Feminino")
+    st.write("Amo vc mocinha linda❤️")  
+    aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
+    "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"
+])
     # Botão de Sair (Logout) na barra lateral para segurança
     if st.sidebar.button("Log out / Sair"):
         st.session_state["autenticado"] = False
         st.rerun()
-
-    st.title("🚗 Gestão Handebol Feminino")
-    st.write("Amo vc mocinha linda❤️")        
-
-aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
-    "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"
-])
 
 # ==========================================
 # ABA 1: LANÇAMENTOS (Onde a mágica acontece)

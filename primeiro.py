@@ -29,7 +29,7 @@ if not st.session_state.autenticado:
     col_esq, col_centro, col_dir = st.columns([1, 2, 1])
     
     with col_centro:
-        st.image("Taubate.png", width=200) # O seu logo aqui!
+        st.image("Taubate.jpg", width=200) # O seu logo aqui!
         st.title("🔐 Acesso Restrito")
         senha_digitada = st.text_input("Digite a senha do time:", type="password")
         

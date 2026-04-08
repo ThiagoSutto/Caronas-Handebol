@@ -13,35 +13,39 @@ supabase = create_client(url, key)
 MENINAS_DO_TIME = sorted(list(st.secrets["MENINAS_DO_TIME"]))
 
 # Inicializa a memória do site (Session State)
-if "dados_ida" not in st.session_state:
-    st.session_state["dados_ida"] = []
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
 
 # ==========================================
 # 2. INTERFACE E SEGURANÇA
 # ==========================================
-st.set_page_config(page_title="Caronas Handebol", layout="wide")
-col_esq, col_centro, col_dir = st.columns([1, 2, 1])
-
-with col_centro:
-    st.title("🔐 Acesso Restrito")
-    st.write("Bem-vinda ao sistema financeiro do Handebol Feminino.")
+if not st.session_state["autenticado"]:
+    # --- TELA DE LOGIN ---
+    col_esq, col_centro, col_dir = st.columns([1, 2, 1])
     
-    # Campo de senha grande e visível no centro
-    senha_digitada = st.text_input("Digite a senha do time para entrar:", type="password")
+    with col_centro:
+        st.image("logo.png", width=200) # O seu logo aqui!
+        st.title("🔐 Acesso Restrito")
+        senha_digitada = st.text_input("Digite a senha do time:", type="password")
+        
+        if st.button("Entrar"):
+            if senha_digitada == st.secrets["SENHA_TIME"]:
+                st.session_state["autenticado"] = True
+                st.rerun() # Isso faz o site recarregar e "limpar" a tela de login
+            else:
+                st.error("Senha incorreta!")
+    st.stop() # Interrompe o código aqui se não estiver autenticado
 
-    if senha_digitada == st.secrets["SENHA_TIME"]:
-        st.success("Acesso liberado! Carregando sistema...")
-        # Se a senha estiver correta, o código continua para baixo
-    elif senha_digitada == "":
-        st.info("Aguardando senha...")
-        st.stop() # Para o código aqui até a senha ser digitada
-    else:
-        st.error("Senha incorreta! Tente novamente.")
-        st.stop() # Para o código aqui se a senha estiver errada
+else:
+    # --- O SISTEMA (SÓ APARECE DEPOIS DO LOGIN) ---
+    
+    # Botão de Sair (Logout) na barra lateral para segurança
+    if st.sidebar.button("Log out / Sair"):
+        st.session_state["autenticado"] = False
+        st.rerun()
 
-st.divider()
-st.title("🚗 Gestão Handebol Feminino")
-st.write("Amo vc mocinha linda❤️")        
+    st.title("🚗 Gestão Handebol Feminino")
+    st.write("Amo vc mocinha linda❤️")        
 
 aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
     "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"

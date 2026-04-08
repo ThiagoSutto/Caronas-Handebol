@@ -27,7 +27,8 @@ senha_digitada = st.sidebar.text_input("Digite a senha do time", type="password"
 
 if senha_digitada == st.secrets["SENHA_TIME"]:
     st.sidebar.success("Acesso liberado!")
-    aba_lancamento, aba_resumo, aba_detalhes = st.tabs(["📝 Lançamentos", "📊 Resumo Mensal", "🔍 Detalhes"])
+    aba_carona, aba_mensalidade, aba_resumo, aba_detalhes = st.tabs([
+    "🚗 Caronas", "💰 Mensalidades", "📊 Resumo Geral", "🔍 Detalhes"])
 else:
     st.warning("Aguardando senha...")
     st.stop()
@@ -35,7 +36,7 @@ else:
 # ==========================================
 # ABA 1: LANÇAMENTOS (Onde a mágica acontece)
 # ==========================================
-with aba_lancamento:
+with aba_carona:
     col_input, col_conf = st.columns([1.2, 1])
     
     with col_input:
@@ -118,7 +119,48 @@ with aba_lancamento:
                 st.balloons()
 
 # ==========================================
-# ABA 2: RESUMO MENSAL
+# ABA 2: MENSALIDADES
+# ==========================================
+with aba_mensalidade:
+    st.header("💰 Controle de Mensalidades")
+    
+    col_mes, col_ano, col_valor = st.columns(3)
+    with col_mes:
+        mes_ref = st.selectbox("Mês de Referência", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+    with col_ano:
+        ano_ref = st.number_input("Ano", value=2026)
+    with col_valor:
+        valor_mensalidade = st.number_input("Valor da Mensalidade (R$)", value=50.0)
+
+    st.divider()
+
+    # Busca quem já pagou esse mês no banco
+    pagamentos_mes = supabase.table("mensalidades").select("nome").eq("mes", mes_ref).eq("ano", ano_ref).execute()
+    quem_pagou = [p['nome'] for p in pagamentos_mes.data]
+
+    st.subheader(f"Status de {mes_ref}/{ano_ref}")
+    
+    # Cria uma lista com 2 colunas para ficar organizado
+    cols = st.columns(2)
+    for i, menina in enumerate(MENINAS_DO_TIME):
+        col_idx = i % 2
+        with cols[col_idx]:
+            ja_pagou = menina in quem_pagou
+            
+            if ja_pagou:
+                st.success(f"✅ {menina.capitalize()} - PAGO")
+            else:
+                if st.button(f"Registrar Pagamento: {menina.capitalize()}", key=f"pay_{menina}"):
+                    supabase.table("mensalidades").insert({
+                        "nome": menina,
+                        "mes": mes_ref,
+                        "ano": ano_ref,
+                        "valor": valor_mensalidade
+                    }).execute()
+                    st.rerun()
+
+# ==========================================
+# ABA 3: RESUMO MENSAL
 # ==========================================
 with aba_resumo:
     st.header("📊 Balanço do Time")
@@ -143,7 +185,7 @@ with aba_resumo:
         st.info("Sem dados.")
 
 # ==========================================
-# ABA 3: DETALHES
+# ABA 4: DETALHES
 # ==========================================
 with aba_detalhes:
     st.header("🔍 Histórico de Lançamentos")
@@ -159,3 +201,8 @@ with aba_detalhes:
             st.rerun()
     else:
         st.info("Nada para mostrar.")
+
+    res_mensal = supabase.table("mensalidades").select("valor").execute()
+    total_mensalidades = sum([m['valor'] for m in res_mensal.data])
+    
+    st.metric("Total em Caixa (Mensalidades)", f"R$ {total_mensalidades:.2f}")

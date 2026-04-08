@@ -14,12 +14,12 @@ MENINAS_DO_TIME = sorted(list(st.secrets["MENINAS_DO_TIME"]))
 
 # Inicializa a memória do site (Session State)
 if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
+    st.session_state.autenticadox = False
 
 # ==========================================
 # 2. INTERFACE E SEGURANÇA
 # ==========================================
-if not st.session_state["autenticado"]:
+if not st.session_state.autenticado:
     # --- TELA DE LOGIN ---
     col_esq, col_centro, col_dir = st.columns([1, 2, 1])
     

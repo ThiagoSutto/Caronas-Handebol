@@ -38,7 +38,7 @@ if not st.session_state.autenticado:
             # Mini-colunas só para centralizar o logo dentro do cartão perfeitamente
             col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
             with col_l2:
-                st.image("Taubate.png", use_container_width=True) 
+                st.image("12.jpg", use_container_width=True) 
             
             # Usando HTML para centralizar os textos
             st.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>Acesso Restrito</h2>", unsafe_allow_html=True)

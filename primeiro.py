@@ -25,20 +25,42 @@ if "dados_ida" not in st.session_state:
 # 2. INTERFACE E SEGURANÇA
 # ==========================================
 if not st.session_state.autenticado:
-    # --- TELA DE LOGIN ---
-    col_esq, col_centro, col_dir = st.columns([1, 2, 1])
+   # Ajustei as colunas para o "cartão" não ficar muito largo no PC
+    col_esq, col_centro, col_dir = st.columns([1, 1.5, 1])
     
     with col_centro:
-        st.image("12.jpg", width=300) # O seu logo aqui!
-        st.title("🔐 Acesso Restrito")
-        senha_digitada = st.text_input("Digite a senha do time:", type="password")
+        st.write("") # Dá um espacinho no topo para não ficar colado no teto
+        st.write("")
         
-        if st.button("Entrar"):
-            if senha_digitada == st.secrets["SENHA_TIME"]:
-                st.session_state["autenticado"] = True
-                st.rerun() # Isso faz o site recarregar e "limpar" a tela de login
-            else:
-                st.error("Senha incorreta!")
+        # Cria um "cartão" em volta do login
+        with st.container(border=True):
+            
+            # Mini-colunas só para centralizar o logo dentro do cartão perfeitamente
+            col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+            with col_l2:
+                st.image("Taubate.png", use_container_width=True) 
+            
+            # Usando HTML para centralizar os textos
+            st.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>Acesso Restrito</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: gray;'>Sistema Financeiro • Handebol Feminino</p>", unsafe_allow_html=True)
+            
+            st.divider() # Uma linha sutil para separar o cabeçalho do formulário
+            
+            # Campo de senha com um ícone e placeholder
+            senha_digitada = st.text_input("🔑 Senha do Time", type="password", placeholder="Digite a senha secreta...")
+            
+            st.write("") # Espacinho antes do botão
+            
+            # Botão moderno, colorido (primary) e que ocupa 100% da largura do cartão
+            if st.button("Entrar no Sistema 🚀", type="primary", use_container_width=True):
+                if senha_digitada == st.secrets["SENHA_TIME"]:
+                    st.session_state.autenticado = True
+                    st.rerun()
+                else:
+                    st.error("❌ Senha incorreta! Tente novamente.")
+                    
+        # Um "charminho" de rodapé fora do cartão
+        st.markdown("<p style='text-align: center; font-size: 14px; color: gray; margin-top: 15px;'>Desenvolvido por Thiago para o Taubaté 🤾‍♀️</p>", unsafe_allow_html=True)
     st.stop() # Interrompe o código aqui se não estiver autenticado
 
 else:

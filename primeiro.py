@@ -12,9 +12,6 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-# Voltamos a usar a lista oficial do seu arquivo secrets.toml
-MENINAS_DO_TIME = sorted(list(st.secrets["MENINAS_DO_TIME"]))
-
 # ==========================================
 # 2. INICIALIZAÇÃO DA SESSÃO
 # ==========================================
@@ -52,8 +49,15 @@ if not st.session_state.autenticado:
     st.stop()
 
 # ==========================================
-# 4. O SISTEMA (LOGADO)
+# 4. O SISTEMA (LOGADO) E BUSCA DO ELENCO
 # ==========================================
+# Busca as meninas direto do Banco de Dados agora!
+res_atletas = supabase.table("atletas").select("*").execute()
+df_atletas = pd.DataFrame(res_atletas.data) if res_atletas.data else pd.DataFrame(columns=["nome", "isenta_fixo"])
+
+MENINAS_DO_TIME = sorted(df_atletas['nome'].tolist()) if not df_atletas.empty else []
+isentas_list = df_atletas[df_atletas['isenta_fixo'] == True]['nome'].tolist() if not df_atletas.empty else []
+
 st.sidebar.title("Configurações")
 mes_ref = st.sidebar.selectbox("Mês de Referência", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
 ano_ref = st.sidebar.number_input("Ano", value=2026)
@@ -65,76 +69,76 @@ if st.sidebar.button("Log out / Sair"):
 st.title("🤾‍♀️ Gestão Handebol Feminino")
 st.write(f"Trabalhando no mês de **{mes_ref}/{ano_ref}**")
 
-aba_carona, aba_lancamentos, aba_faturas, aba_resumo = st.tabs([
-    "🚗 Registro de Caronas", "💸 Lançamentos", "🧾 Gerar Faturas", "📊 Balanço Geral"
+# NOVA ABA DE ELENCO ADICIONADA AQUI
+aba_carona, aba_lancamentos, aba_faturas, aba_resumo, aba_elenco = st.tabs([
+    "🚗 Registro de Caronas", "💸 Lançamentos", "🧾 Gerar Faturas", "📊 Balanço Geral", "⚙️ Elenco"
 ])
 
 # ---------------------------------------------------------
 # ABA 1: CARONAS
 # ---------------------------------------------------------
 with aba_carona:
-    col_input, col_conf = st.columns([1.2, 1])
-    with col_input:
-        st.header("Lançar Carona")
-        data_carona = st.date_input("Data do Treino")
-        tipo_v = st.radio("Viagem", ["Ida", "Volta"], horizontal=True)
-        num_carros = st.number_input("Quantos carros?", 1, 6, value=2)
-        
-        lista_de_carros = []
-        for i in range(1, num_carros + 1):
-            with st.expander(f"🚙 Carro {i}", expanded=True):
-                m = st.selectbox(f"Motorista", [""] + MENINAS_DO_TIME, key=f"m_{i}")
-                p = st.multiselect(f"Passageiras", [n for n in MENINAS_DO_TIME if n != m], key=f"p_{i}")
-                if m:
-                    lista_de_carros.append({"motorista": m, "passageiras": p})
+    if not MENINAS_DO_TIME:
+        st.warning("⚠️ O time está vazio! Vá na aba '⚙️ Elenco' e cadastre as meninas primeiro.")
+    else:
+        col_input, col_conf = st.columns([1.2, 1])
+        with col_input:
+            st.header("Lançar Carona")
+            data_carona = st.date_input("Data do Treino")
+            tipo_v = st.radio("Viagem", ["Ida", "Volta"], horizontal=True)
+            num_carros = st.number_input("Quantos carros?", 1, 6, value=2)
+            
+            lista_de_carros = []
+            for i in range(1, num_carros + 1):
+                with st.expander(f"🚙 Carro {i}", expanded=True):
+                    m = st.selectbox(f"Motorista", [""] + MENINAS_DO_TIME, key=f"m_{i}")
+                    p = st.multiselect(f"Passageiras", [n for n in MENINAS_DO_TIME if n != m], key=f"p_{i}")
+                    if m:
+                        lista_de_carros.append({"motorista": m, "passageiras": p})
 
-    with col_conf:
-        st.header("Conferência")
-        if lista_de_carros:
-            num_mots = len(lista_de_carros)
-            bolo = 0.0
-            for c in lista_de_carros:
-                n = len(c['passageiras'])
-                custo = 3.50 / (n + 1) if n > 0 else 0
-                bolo += (custo * n)
-                c['custo'] = custo
-            ganho = bolo / num_mots
-            st.metric("Bolo Total", f"R$ {bolo:.2f}")
-            if st.button("💾 Salvar Carona", type="primary"):
+        with col_conf:
+            st.header("Conferência")
+            if lista_de_carros:
+                num_mots = len(lista_de_carros)
+                bolo = 0.0
                 for c in lista_de_carros:
-                    supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": c['motorista'], "papel": "Motorista", "valor_a_pagar": 0, "valor_a_receber": ganho, "mes": mes_ref, "ano": ano_ref}).execute()
-                    for p in c['passageiras']:
-                        supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": p, "papel": "Passageira", "valor_a_pagar": c['custo'], "valor_a_receber": 0, "mes": mes_ref, "ano": ano_ref}).execute()
-                st.success("Salvo!")
-        
-        # --- ADICIONE ESTE BLOCO NO FINAL DA ABA DE CARONAS ---
-        st.divider()
-        st.subheader("🗑️ Apagar Viagens (Dia/Trajeto Completo)")
-        st.write("Ao clicar em excluir, você apagará todos os carros e passageiras daquele trajeto específico.")
-        
-        res_caronas = supabase.table("caixa_mensal").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute()
-        
-        if res_caronas.data:
-            df_hist_carona = pd.DataFrame(res_caronas.data)
+                    n = len(c['passageiras'])
+                    custo = 3.50 / (n + 1) if n > 0 else 0
+                    bolo += (custo * n)
+                    c['custo'] = custo
+                ganho = bolo / num_mots
+                st.metric("Bolo Total", f"R$ {bolo:.2f}")
+                if st.button("💾 Salvar Carona", type="primary"):
+                    for c in lista_de_carros:
+                        supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": c['motorista'], "papel": "Motorista", "valor_a_pagar": 0, "valor_a_receber": ganho, "mes": mes_ref, "ano": ano_ref}).execute()
+                        for p in c['passageiras']:
+                            supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": p, "papel": "Passageira", "valor_a_pagar": c['custo'], "valor_a_receber": 0, "mes": mes_ref, "ano": ano_ref}).execute()
+                    st.success("Salvo!")
             
-            # Agrupa os dados pela Data e pelo Tipo (Ida ou Volta)
-            viagens_agrupadas = df_hist_carona.groupby(['data', 'tipo_viagem']).size().reset_index(name='qtd_pessoas')
-            viagens_agrupadas = viagens_agrupadas.sort_values(by="data", ascending=False)
+            st.divider()
+            st.subheader("🗑️ Apagar Viagens (Dia/Trajeto Completo)")
+            st.write("Ao clicar em excluir, você apagará todos os carros e passageiras daquele trajeto específico.")
             
-            for _, viagem in viagens_agrupadas.iterrows():
-                data_v = viagem['data']
-                tipo_v = viagem['tipo_viagem']
-                qtd = viagem['qtd_pessoas']
+            res_caronas = supabase.table("caixa_mensal").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute()
+            
+            if res_caronas.data:
+                df_hist_carona = pd.DataFrame(res_caronas.data)
+                viagens_agrupadas = df_hist_carona.groupby(['data', 'tipo_viagem']).size().reset_index(name='qtd_pessoas')
+                viagens_agrupadas = viagens_agrupadas.sort_values(by="data", ascending=False)
                 
-                col_txt, col_btn = st.columns([4, 1])
-                col_txt.write(f"🚗 **Data:** {data_v} | **Trajeto:** {tipo_v} *(Envolve {qtd} pessoas)*")
-                
-                # O botão agora apaga todo mundo que tiver aquela data e aquele tipo de viagem
-                if col_btn.button("Excluir Viagem", key=f"del_v_{data_v}_{tipo_v}", type="secondary"):
-                    supabase.table("caixa_mensal").delete().eq("data", data_v).eq("tipo_viagem", tipo_v).eq("mes", mes_ref).eq("ano", ano_ref).execute()
-                    st.rerun()
-        else:
-            st.info("Nenhuma carona registrada para este mês.")
+                for _, viagem in viagens_agrupadas.iterrows():
+                    data_v = viagem['data']
+                    tipo_v = viagem['tipo_viagem']
+                    qtd = viagem['qtd_pessoas']
+                    
+                    col_txt, col_btn = st.columns([4, 1])
+                    col_txt.write(f"🚗 **Data:** {data_v} | **Trajeto:** {tipo_v} *(Envolve {qtd} pessoas)*")
+                    
+                    if col_btn.button("Excluir Viagem", key=f"del_v_{data_v}_{tipo_v}", type="secondary"):
+                        supabase.table("caixa_mensal").delete().eq("data", data_v).eq("tipo_viagem", tipo_v).eq("mes", mes_ref).eq("ano", ano_ref).execute()
+                        st.rerun()
+            else:
+                st.info("Nenhuma carona registrada para este mês.")               
 
 # ---------------------------------------------------------
 # ABA 2: LANÇAMENTOS 
@@ -232,7 +236,9 @@ with aba_lancamentos:
                 df_pagos_p = pd.DataFrame(supabase.table("mensalidades_hand").select("*").eq("mes", mes_passado).eq("ano", ano_passado).execute().data)
 
                 for m in MENINAS_DO_TIME:
-                    fixo = 80.0
+                    # Verifica a isenção para o cálculo da dívida anterior
+                    fixo = 0.0 if m in isentas_list else 80.0
+                    
                     ext = df_ext_p[df_ext_p['nome'] == m]['valor'].sum() if not df_ext_p.empty else 0
                     car_d = df_car_p[df_car_p['nome'] == m]['valor_a_pagar'].sum() if not df_car_p.empty else 0
                     car_r = df_car_p[df_car_p['nome'] == m]['valor_a_receber'].sum() if not df_car_p.empty else 0
@@ -261,7 +267,7 @@ with aba_lancamentos:
                     st.rerun()
 
 # ---------------------------------------------------------
-# ABA 3: NOVA ABA PRINCIPAL DE FATURAS
+# ABA 3: FATURAS
 # ---------------------------------------------------------
 with aba_faturas:
     st.header("🧾 Fechamento e Faturas")
@@ -272,15 +278,16 @@ with aba_faturas:
 
     df_ext = pd.DataFrame(supabase.table("lancamentos_extras").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute().data)
     df_car = pd.DataFrame(supabase.table("caixa_mensal").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute().data)
-    
-    # Busca os pagamentos JÁ FEITOS usando a tabela correta
     df_pagos = pd.DataFrame(supabase.table("mensalidades_hand").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute().data)
 
     for menina in MENINAS_DO_TIME:
         with st.expander(f"📋 Fatura: {menina.capitalize()}"):
             gastos_menina = df_ext[df_ext['nome'] == menina] if not df_ext.empty else pd.DataFrame()
             
-            fixo = 80.0
+            # --- LÓGICA DE ISENÇÃO APLICADA AQUI ---
+            fixo = 0.0 if menina in isentas_list else 80.0
+            # ---------------------------------------
+            
             total_extras = gastos_menina['valor'].sum() if not gastos_menina.empty else 0
             car_d = df_car[df_car['nome'] == menina]['valor_a_pagar'].sum() if not df_car.empty else 0
             car_r = df_car[df_car['nome'] == menina]['valor_a_receber'].sum() if not df_car.empty else 0
@@ -290,9 +297,9 @@ with aba_faturas:
             ja_pagou = df_pagos[df_pagos['nome'] == menina]['valor'].sum() if not df_pagos.empty else 0
             falta_pagar = total_mes - ja_pagou
 
-            # --- CONSTRUÇÃO DA MENSAGEM ---
+            # Mensagem do WhatsApp
             msg = f"Bom diaa,\nPassando para te mandar a sua 💰Mensalidade💰 de {mes_ref.lower()}\n\nPrazo: {prazo_pagamento}\n\n"
-            msg += f"Mensalidade- R$ {fixo:.2f}\n"
+            if fixo > 0: msg += f"Mensalidade- R$ {fixo:.2f}\n"
             if v_car != 0: msg += f"Caronas - R$ {v_car:.2f}\n"
             
             if not gastos_menina.empty:
@@ -307,8 +314,10 @@ with aba_faturas:
             
             msg += f"\nPix: {chave_pix}\nQualquer dúvida me avisa!!"
 
-            # --- VISUAL NO SITE ---
+            # Visual no Site
             st.markdown("#### 🔍 Detalhamento:")
+            if fixo == 0.0:
+                st.caption("*(Atleta Isenta da Mensalidade Fixa)*")
             if not gastos_menina.empty:
                 for _, linha in gastos_menina.iterrows():
                     obs = f" - {linha.get('obs', '')}" if linha.get('obs') else ""
@@ -319,17 +328,17 @@ with aba_faturas:
             st.divider()
             st.write(f"### Total da Fatura: R$ {total_mes:.2f}")
 
-            # Lógica de Controle de Pagamento
-            if falta_pagar <= 0.01:
+            if falta_pagar <= 0.01 and total_mes > 0:
                 st.success("✅ FATURA QUITADA! Tudo certo este mês.")
                 if st.button("Estornar Pagamentos (Erro)", key=f"estorno_{menina}"):
                     supabase.table("mensalidades_hand").delete().eq("nome", menina).eq("mes", mes_ref).eq("ano", ano_ref).execute()
                     st.rerun()
+            elif total_mes == 0:
+                st.info("Nenhum custo neste mês.")
             else:
                 if ja_pagou > 0:
                     st.warning(f"⚠️ Atenção: Ela já pagou R$ {ja_pagou:.2f}. Ainda falta R$ {falta_pagar:.2f}.")
                 
-                # Caixinha para você dar baixa quando o PIX cair
                 c_val, c_btn = st.columns([1.5, 1])
                 v_recebido = c_val.number_input("Pix Recebido (R$)", min_value=0.0, value=float(falta_pagar), key=f"rec_{menina}")
                 if c_btn.button("Dar Baixa 💸", key=f"btn_{menina}", type="primary"):
@@ -341,7 +350,7 @@ with aba_faturas:
                 st.link_button(f"Enviar Cobrança 🟢", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg)}")
 
 # ---------------------------------------------------------
-# ABA 4: BALANÇO GERAL (Aba restaurada!)
+# ABA 4: BALANÇO GERAL
 # ---------------------------------------------------------
 with aba_resumo:
     st.header(f"📊 Resumo Financeiro - {mes_ref}/{ano_ref}")
@@ -361,19 +370,18 @@ with aba_resumo:
     total_caixa = 0
 
     for m in MENINAS_DO_TIME:
-        # Caronas
         p_c = df_car[df_car['nome'] == m]['valor_a_pagar'].sum() if not df_car.empty else 0
         r_c = df_car[df_car['nome'] == m]['valor_a_receber'].sum() if not df_car.empty else 0
         saldo_carona = r_c - p_c
         
-        # Extras + Fixo
         ext = df_ext[df_ext['nome'] == m]['valor'].sum() if not df_ext.empty else 0
-        fixo = 80.0
         
-        # Pagamentos
+        # --- LÓGICA DE ISENÇÃO NO BALANÇO ---
+        fixo = 0.0 if m in isentas_list else 80.0
+        # ------------------------------------
+        
         pago = df_pagos[df_pagos['nome'] == m]['valor'].sum() if not df_pagos.empty else 0
         
-        # Matemáticas
         devido = fixo + ext - saldo_carona
         pendente = devido - pago
         
@@ -384,12 +392,12 @@ with aba_resumo:
             "Atleta": m.capitalize(), 
             "Saldo Caronas": f"R$ {saldo_carona:.2f}",
             "Lançamentos Extras": f"R$ {ext:.2f}",
-            "Total Devido da Fatura": f"R$ {devido:.2f}",
+            "Fixo/Mensalidade": f"R$ {fixo:.2f}",
+            "Total Devido": f"R$ {devido:.2f}",
             "Já Pagou": f"R$ {pago:.2f}",
             "Falta Pagar": f"R$ {pendente:.2f}"
         })
     
-    # Exibição do Dinheiro no Topo
     c1, c2, c3 = st.columns(3)
     c1.metric("Expectativa de Arrecadação", f"R$ {total_esperado:.2f}")
     c2.metric("Dinheiro em Caixa (PIX Recebido)", f"R$ {total_caixa:.2f}")
@@ -397,3 +405,44 @@ with aba_resumo:
 
     st.divider()
     st.dataframe(pd.DataFrame(balanco), use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------------
+# ABA 5: GESTÃO DO ELENCO (A Novidade!)
+# ---------------------------------------------------------
+with aba_elenco:
+    st.header("⚙️ Gestão de Atletas")
+    st.write("Adicione novas meninas ou remova quem saiu do time.")
+    
+    col_add, col_lista = st.columns(2)
+    
+    with col_add:
+        with st.container(border=True):
+            st.subheader("➕ Adicionar Atleta")
+            with st.form("form_add_atleta", clear_on_submit=True):
+                novo_nome = st.text_input("Nome da Atleta (ex: maju)").strip().lower()
+                isenta = st.checkbox("Isenta da Mensalidade Fixa (R$ 80)")
+                st.caption("Marque isso se ela já paga a mensalidade em outro time.")
+                
+                if st.form_submit_button("Salvar Atleta", type="primary"):
+                    if novo_nome:
+                        if novo_nome in MENINAS_DO_TIME:
+                            st.warning("Essa atleta já está no time!")
+                        else:
+                            supabase.table("atletas").insert({"nome": novo_nome, "isenta_fixo": isenta}).execute()
+                            st.success(f"{novo_nome.capitalize()} adicionada com sucesso!")
+                            st.rerun()
+
+    with col_lista:
+        with st.container(border=True):
+            st.subheader("📋 Elenco Atual")
+            if not df_atletas.empty:
+                for _, row in df_atletas.iterrows():
+                    c_nome, c_btn = st.columns([3, 1])
+                    txt_isenta = " 🟢 *(Isenta de Mensalidade)*" if row.get('isenta_fixo') else ""
+                    c_nome.write(f"• **{row['nome'].capitalize()}**{txt_isenta}")
+                    
+                    if c_btn.button("Remover", key=f"del_atl_{row['id']}"):
+                        supabase.table("atletas").delete().eq("id", row['id']).execute()
+                        st.rerun()
+            else:
+                st.info("Nenhuma atleta cadastrada ainda.")

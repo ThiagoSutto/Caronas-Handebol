@@ -309,7 +309,7 @@ with aba_faturas:
             if car_d > 0 or car_r > 0:
                 st.write(f"• Caronas: Usou R$ {car_d:.2f} | Recebeu R$ {car_r:.2f}")
             
-           st.divider()
+            st.divider()
             st.write(f"### Total da Fatura: R$ {total_mes:.2f}")
 
             # --- LÓGICA DE CONTROLE DE PAGAMENTO CORRIGIDA ---

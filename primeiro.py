@@ -6,11 +6,20 @@ import urllib.parse
 st.set_page_config(page_title="Caronas Handebol", layout="wide")
 
 # ==========================================
-# 1. CONEXÃO COM O SUPABASE
+# 1. CONEXÃO COM O SUPABASE E ELENCO
 # ==========================================
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
+
+# Volta a puxar as meninas do arquivo rápido e seguro!
+MENINAS_DO_TIME = sorted(list(st.secrets["MENINAS_DO_TIME"]))
+
+# Busca quem é isenta no secrets (se a lista não existir lá, ninguém é isenta)
+try:
+    isentas_list = list(st.secrets["ISENTAS"])
+except:
+    isentas_list = []
 
 # ==========================================
 # 2. INICIALIZAÇÃO DA SESSÃO
@@ -26,15 +35,10 @@ if not st.session_state.autenticado:
     with col_centro:
         st.write("") 
         with st.container(border=True):
-            
-            # --- IMAGEM SIMPLIFICADA ---
             col_vazia_esq, col_img, col_vazia_dir = st.columns([1, 1.5, 1])
             with col_img:
-                try:
-                    st.image("1.jpg", use_container_width=True)
-                except Exception as e:
-                    st.warning("⚠️ Imagem não carregou.")
-            # ---------------------------
+                try: st.image("1.jpg", use_container_width=True)
+                except Exception as e: st.warning("⚠️ Imagem não carregou.")
             
             st.markdown("<h2 style='text-align: center;'>Acesso Restrito</h2>", unsafe_allow_html=True)
             st.divider()
@@ -49,15 +53,8 @@ if not st.session_state.autenticado:
     st.stop()
 
 # ==========================================
-# 4. O SISTEMA (LOGADO) E BUSCA DO ELENCO
+# 4. O SISTEMA (LOGADO)
 # ==========================================
-# Busca as meninas direto do Banco de Dados agora!
-res_atletas = supabase.table("atletas").select("*").execute()
-df_atletas = pd.DataFrame(res_atletas.data) if res_atletas.data else pd.DataFrame(columns=["nome", "isenta_fixo"])
-
-MENINAS_DO_TIME = sorted(df_atletas['nome'].tolist()) if not df_atletas.empty else []
-isentas_list = df_atletas[df_atletas['isenta_fixo'] == True]['nome'].tolist() if not df_atletas.empty else []
-
 st.sidebar.title("Configurações")
 mes_ref = st.sidebar.selectbox("Mês de Referência", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
 ano_ref = st.sidebar.number_input("Ano", value=2026)
@@ -69,83 +66,76 @@ if st.sidebar.button("Log out / Sair"):
 st.title("🤾‍♀️ Gestão Handebol Feminino")
 st.write(f"Trabalhando no mês de **{mes_ref}/{ano_ref}**")
 
-# NOVA ABA DE ELENCO ADICIONADA AQUI
-aba_carona, aba_lancamentos, aba_faturas, aba_resumo, aba_elenco = st.tabs([
-    "🚗 Registro de Caronas", "💸 Lançamentos", "🧾 Gerar Faturas", "📊 Balanço Geral", "⚙️ Elenco"
+aba_carona, aba_lancamentos, aba_faturas, aba_resumo = st.tabs([
+    "🚗 Registro de Caronas", "💸 Lançamentos", "🧾 Gerar Faturas", "📊 Balanço Geral"
 ])
 
 # ---------------------------------------------------------
 # ABA 1: CARONAS
 # ---------------------------------------------------------
 with aba_carona:
-    if not MENINAS_DO_TIME:
-        st.warning("⚠️ O time está vazio! Vá na aba '⚙️ Elenco' e cadastre as meninas primeiro.")
-    else:
-        col_input, col_conf = st.columns([1.2, 1])
-        with col_input:
-            st.header("Lançar Carona")
-            data_carona = st.date_input("Data do Treino")
-            tipo_v = st.radio("Viagem", ["Ida", "Volta"], horizontal=True)
-            num_carros = st.number_input("Quantos carros?", 1, 6, value=2)
-            
-            lista_de_carros = []
-            for i in range(1, num_carros + 1):
-                with st.expander(f"🚙 Carro {i}", expanded=True):
-                    m = st.selectbox(f"Motorista", [""] + MENINAS_DO_TIME, key=f"m_{i}")
-                    p = st.multiselect(f"Passageiras", [n for n in MENINAS_DO_TIME if n != m], key=f"p_{i}")
-                    if m:
-                        lista_de_carros.append({"motorista": m, "passageiras": p})
+    col_input, col_conf = st.columns([1.2, 1])
+    with col_input:
+        st.header("Lançar Carona")
+        data_carona = st.date_input("Data do Treino")
+        tipo_v = st.radio("Viagem", ["Ida", "Volta"], horizontal=True)
+        num_carros = st.number_input("Quantos carros?", 1, 6, value=2)
+        
+        lista_de_carros = []
+        for i in range(1, num_carros + 1):
+            with st.expander(f"🚙 Carro {i}", expanded=True):
+                m = st.selectbox(f"Motorista", [""] + MENINAS_DO_TIME, key=f"m_{i}")
+                p = st.multiselect(f"Passageiras", [n for n in MENINAS_DO_TIME if n != m], key=f"p_{i}")
+                if m:
+                    lista_de_carros.append({"motorista": m, "passageiras": p})
 
-        with col_conf:
-            st.header("Conferência")
-            if lista_de_carros:
-                num_mots = len(lista_de_carros)
-                bolo = 0.0
+    with col_conf:
+        st.header("Conferência")
+        if lista_de_carros:
+            num_mots = len(lista_de_carros)
+            bolo = 0.0
+            for c in lista_de_carros:
+                n = len(c['passageiras'])
+                custo = 3.50 / (n + 1) if n > 0 else 0
+                bolo += (custo * n)
+                c['custo'] = custo
+            ganho = bolo / num_mots
+            st.metric("Bolo Total", f"R$ {bolo:.2f}")
+            if st.button("💾 Salvar Carona", type="primary"):
                 for c in lista_de_carros:
-                    n = len(c['passageiras'])
-                    custo = 3.50 / (n + 1) if n > 0 else 0
-                    bolo += (custo * n)
-                    c['custo'] = custo
-                ganho = bolo / num_mots
-                st.metric("Bolo Total", f"R$ {bolo:.2f}")
-                if st.button("💾 Salvar Carona", type="primary"):
-                    for c in lista_de_carros:
-                        supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": c['motorista'], "papel": "Motorista", "valor_a_pagar": 0, "valor_a_receber": ganho, "mes": mes_ref, "ano": ano_ref}).execute()
-                        for p in c['passageiras']:
-                            supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": p, "papel": "Passageira", "valor_a_pagar": c['custo'], "valor_a_receber": 0, "mes": mes_ref, "ano": ano_ref}).execute()
-                    st.success("Salvo!")
+                    supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": c['motorista'], "papel": "Motorista", "valor_a_pagar": 0, "valor_a_receber": ganho, "mes": mes_ref, "ano": ano_ref}).execute()
+                    for p in c['passageiras']:
+                        supabase.table("caixa_mensal").insert({"data": str(data_carona), "tipo_viagem": tipo_v, "nome": p, "papel": "Passageira", "valor_a_pagar": c['custo'], "valor_a_receber": 0, "mes": mes_ref, "ano": ano_ref}).execute()
+                st.success("Salvo!")
+        
+        st.divider()
+        st.subheader("🗑️ Apagar Viagens (Dia/Trajeto Completo)")
+        st.write("Ao clicar em excluir, você apagará todos os carros e passageiras daquele trajeto específico.")
+        
+        res_caronas = supabase.table("caixa_mensal").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute()
+        if res_caronas.data:
+            df_hist_carona = pd.DataFrame(res_caronas.data)
+            viagens_agrupadas = df_hist_carona.groupby(['data', 'tipo_viagem']).size().reset_index(name='qtd_pessoas')
+            viagens_agrupadas = viagens_agrupadas.sort_values(by="data", ascending=False)
             
-            st.divider()
-            st.subheader("🗑️ Apagar Viagens (Dia/Trajeto Completo)")
-            st.write("Ao clicar em excluir, você apagará todos os carros e passageiras daquele trajeto específico.")
-            
-            res_caronas = supabase.table("caixa_mensal").select("*").eq("mes", mes_ref).eq("ano", ano_ref).execute()
-            
-            if res_caronas.data:
-                df_hist_carona = pd.DataFrame(res_caronas.data)
-                viagens_agrupadas = df_hist_carona.groupby(['data', 'tipo_viagem']).size().reset_index(name='qtd_pessoas')
-                viagens_agrupadas = viagens_agrupadas.sort_values(by="data", ascending=False)
+            for _, viagem in viagens_agrupadas.iterrows():
+                data_v = viagem['data']
+                tipo_v = viagem['tipo_viagem']
+                qtd = viagem['qtd_pessoas']
+                col_txt, col_btn = st.columns([4, 1])
+                col_txt.write(f"🚗 **Data:** {data_v} | **Trajeto:** {tipo_v} *(Envolve {qtd} pessoas)*")
                 
-                for _, viagem in viagens_agrupadas.iterrows():
-                    data_v = viagem['data']
-                    tipo_v = viagem['tipo_viagem']
-                    qtd = viagem['qtd_pessoas']
-                    
-                    col_txt, col_btn = st.columns([4, 1])
-                    col_txt.write(f"🚗 **Data:** {data_v} | **Trajeto:** {tipo_v} *(Envolve {qtd} pessoas)*")
-                    
-                    if col_btn.button("Excluir Viagem", key=f"del_v_{data_v}_{tipo_v}", type="secondary"):
-                        supabase.table("caixa_mensal").delete().eq("data", data_v).eq("tipo_viagem", tipo_v).eq("mes", mes_ref).eq("ano", ano_ref).execute()
-                        st.rerun()
-            else:
-                st.info("Nenhuma carona registrada para este mês.")               
+                if col_btn.button("Excluir Viagem", key=f"del_v_{data_v}_{tipo_v}", type="secondary"):
+                    supabase.table("caixa_mensal").delete().eq("data", data_v).eq("tipo_viagem", tipo_v).eq("mes", mes_ref).eq("ano", ano_ref).execute()
+                    st.rerun()
+        else:
+            st.info("Nenhuma carona registrada para este mês.")               
 
 # ---------------------------------------------------------
 # ABA 2: LANÇAMENTOS 
 # ---------------------------------------------------------
 with aba_lancamentos:
     st.header("💸 Lançamentos do Mês")
-
     t_ndu, t_academia, t_alfajor, t_bolo, t_gastos, t_outros, t_historico = st.tabs([
         "🏆 NDU", "🏋️ Academia", "🍫 Alfajor", "🎂 Bolo", "👥 Gastos Mensais", "⚙️ Outros/Dívidas", "🗑️ Apagar Erros"
     ])
@@ -185,7 +175,6 @@ with aba_lancamentos:
 
     with t_bolo:
         st.subheader("🎂 Divisão de Bolo")
-        st.write("Divide o valor entre todas, cobrando R$ 0,00 da aniversariante.")
         with st.form("form_bolo", clear_on_submit=True):
             c1, c2 = st.columns(2)
             niver = c1.selectbox("Quem é a Aniversariante?", MENINAS_DO_TIME, index=None)
@@ -198,7 +187,6 @@ with aba_lancamentos:
 
     with t_gastos:
         st.subheader("👥 Gastos Mensais da Equipe")
-        st.write("O valor digitado será dividido igualmente por TODAS as atletas.")
         with st.form("form_gastos", clear_on_submit=True):
             c1, c2 = st.columns([2, 1])
             desc_g = c1.text_input("Com o que foi gasto? (Ex: Aluguel de Quadra, Água)")
@@ -222,8 +210,6 @@ with aba_lancamentos:
         
         st.divider()
         st.subheader("🔄 Sincronizar Dívidas do Mês Passado")
-        st.write("O sistema vai calcular quem não pagou o total no mês anterior e lançar o restante como Dívida Acumulativa.")
-        
         if st.button("Puxar Dívidas Acumuladas ⚠️", type="primary"):
             meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
             idx_atual = meses.index(mes_ref)
@@ -236,7 +222,6 @@ with aba_lancamentos:
                 df_pagos_p = pd.DataFrame(supabase.table("mensalidades_hand").select("*").eq("mes", mes_passado).eq("ano", ano_passado).execute().data)
 
                 for m in MENINAS_DO_TIME:
-                    # Verifica a isenção para o cálculo da dívida anterior
                     fixo = 0.0 if m in isentas_list else 80.0
                     
                     ext = df_ext_p[df_ext_p['nome'] == m]['valor'].sum() if not df_ext_p.empty else 0
@@ -284,9 +269,8 @@ with aba_faturas:
         with st.expander(f"📋 Fatura: {menina.capitalize()}"):
             gastos_menina = df_ext[df_ext['nome'] == menina] if not df_ext.empty else pd.DataFrame()
             
-            # --- LÓGICA DE ISENÇÃO APLICADA AQUI ---
+            # Cálculo com isenção
             fixo = 0.0 if menina in isentas_list else 80.0
-            # ---------------------------------------
             
             total_extras = gastos_menina['valor'].sum() if not gastos_menina.empty else 0
             car_d = df_car[df_car['nome'] == menina]['valor_a_pagar'].sum() if not df_car.empty else 0
@@ -376,10 +360,7 @@ with aba_resumo:
         
         ext = df_ext[df_ext['nome'] == m]['valor'].sum() if not df_ext.empty else 0
         
-        # --- LÓGICA DE ISENÇÃO NO BALANÇO ---
         fixo = 0.0 if m in isentas_list else 80.0
-        # ------------------------------------
-        
         pago = df_pagos[df_pagos['nome'] == m]['valor'].sum() if not df_pagos.empty else 0
         
         devido = fixo + ext - saldo_carona
@@ -405,44 +386,3 @@ with aba_resumo:
 
     st.divider()
     st.dataframe(pd.DataFrame(balanco), use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# ABA 5: GESTÃO DO ELENCO (A Novidade!)
-# ---------------------------------------------------------
-with aba_elenco:
-    st.header("⚙️ Gestão de Atletas")
-    st.write("Adicione novas meninas ou remova quem saiu do time.")
-    
-    col_add, col_lista = st.columns(2)
-    
-    with col_add:
-        with st.container(border=True):
-            st.subheader("➕ Adicionar Atleta")
-            with st.form("form_add_atleta", clear_on_submit=True):
-                novo_nome = st.text_input("Nome da Atleta (ex: maju)").strip().lower()
-                isenta = st.checkbox("Isenta da Mensalidade Fixa (R$ 80)")
-                st.caption("Marque isso se ela já paga a mensalidade em outro time.")
-                
-                if st.form_submit_button("Salvar Atleta", type="primary"):
-                    if novo_nome:
-                        if novo_nome in MENINAS_DO_TIME:
-                            st.warning("Essa atleta já está no time!")
-                        else:
-                            supabase.table("atletas").insert({"nome": novo_nome, "isenta_fixo": isenta}).execute()
-                            st.success(f"{novo_nome.capitalize()} adicionada com sucesso!")
-                            st.rerun()
-
-    with col_lista:
-        with st.container(border=True):
-            st.subheader("📋 Elenco Atual")
-            if not df_atletas.empty:
-                for _, row in df_atletas.iterrows():
-                    c_nome, c_btn = st.columns([3, 1])
-                    txt_isenta = " 🟢 *(Isenta de Mensalidade)*" if row.get('isenta_fixo') else ""
-                    c_nome.write(f"• **{row['nome'].capitalize()}**{txt_isenta}")
-                    
-                    if c_btn.button("Remover", key=f"del_atl_{row['id']}"):
-                        supabase.table("atletas").delete().eq("id", row['id']).execute()
-                        st.rerun()
-            else:
-                st.info("Nenhuma atleta cadastrada ainda.")

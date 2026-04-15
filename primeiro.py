@@ -132,12 +132,12 @@ with aba_carona:
             st.info("Nenhuma carona registrada para este mês.")               
 
 # ---------------------------------------------------------
-# ABA 2: LANÇAMENTOS 
+# ABA 2: LANÇAMENTOS (AGORA COM 8 ABAS)
 # ---------------------------------------------------------
 with aba_lancamentos:
     st.header("💸 Lançamentos do Mês")
-    t_ndu, t_academia, t_alfajor, t_bolo, t_gastos, t_outros, t_historico = st.tabs([
-        "🏆 NDU", "🏋️ Academia", "🍫 Alfajor", "🎂 Bolo", "👥 Gastos Mensais", "⚙️ Outros/Dívidas", "🗑️ Apagar Erros"
+    t_ndu, t_academia, t_alfajor, t_bolo, t_gastos, t_outros, t_dividas, t_historico = st.tabs([
+        "🏆 NDU", "🏋️ Academia", "🍫 Alfajor", "🎂 Bolo", "👥 Gastos Mensais", "⚙️ Outros", "⏳ Dívidas", "🗑️ Apagar Erros"
     ])
 
     with t_ndu:
@@ -197,18 +197,21 @@ with aba_lancamentos:
                     supabase.table("lancamentos_extras").insert({"nome": m, "tipo": "Gastos mensais", "valor": v_c, "mes": mes_ref, "ano": ano_ref, "obs": desc_g}).execute()
                 st.rerun()
 
+    # --- NOVA ABA SEPARADA: APENAS OUTROS ---
     with t_outros:
-        st.subheader("⚙️ Outros Gastos ou Dívidas Manuais")
+        st.subheader("⚙️ Outros Gastos Manuais")
+        st.write("Ex: Compra de uniforme, garrafinha, etc.")
         with st.form("form_outros", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             atleta = c1.selectbox("Atleta", MENINAS_DO_TIME, index=None, key="o1")
             tipo_outro = c2.text_input("Gasto (Ex: Uniforme)")
             valor = c3.number_input("Valor (R$)", min_value=0.0, key="vo1",step=0.50)
-            if st.form_submit_button("Lançar") and atleta and valor > 0 and tipo_outro:
+            if st.form_submit_button("Lançar Gasto") and atleta and valor > 0 and tipo_outro:
                 supabase.table("lancamentos_extras").insert({"nome": atleta, "tipo": tipo_outro, "valor": valor, "mes": mes_ref, "ano": ano_ref}).execute()
                 st.rerun()
-        
-        st.divider()
+
+    # --- NOVA ABA SEPARADA: APENAS DÍVIDAS E AJUSTES ---
+    with t_dividas:
         st.subheader("🔄 Sincronizar Dívidas do Mês Passado")
         if st.button("Puxar Dívidas Acumuladas ⚠️", type="primary"):
             meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
@@ -238,6 +241,28 @@ with aba_lancamentos:
                             supabase.table("lancamentos_extras").insert({"nome": m, "tipo": "Dívida Acumulativa", "valor": pendencia, "mes": mes_ref, "ano": ano_ref, "obs": f"Saldo de {mes_passado}"}).execute()
             st.success("Pronto! Dívidas roladas para este mês.")
             st.rerun()
+
+        st.divider()
+        st.subheader("✏️ Ajustar Dívidas do Mês")
+        st.write("Se o sistema puxou algum valor errado, você pode corrigir manualmente abaixo:")
+        
+        # Busca todas as dívidas geradas neste mês para permitir edição
+        dividas_atuais = supabase.table("lancamentos_extras").select("*").eq("tipo", "Dívida Acumulativa").eq("mes", mes_ref).eq("ano", ano_ref).execute().data
+        
+        if dividas_atuais:
+            for div in dividas_atuais:
+                c_nome, c_val, c_btn = st.columns([2, 1.5, 1])
+                c_nome.write(f"**{div['nome'].capitalize()}**")
+                
+                # Caixinha que já vem preenchida com o valor atual da dívida
+                novo_valor = c_val.number_input("Valor Correto (R$)", value=float(div['valor']), min_value=0.0, step=0.50, key=f"edit_div_{div['id']}")
+                
+                if c_btn.button("Atualizar", key=f"btn_edit_{div['id']}"):
+                    supabase.table("lancamentos_extras").update({"valor": novo_valor}).eq("id", div['id']).execute()
+                    st.success("Valor corrigido!")
+                    st.rerun()
+        else:
+            st.info("Nenhuma Dívida Acumulativa registrada neste mês ainda.")
             
     with t_historico:
         st.info("Todos os lançamentos do mês atual ficam aqui. Clique em 'Excluir' se digitou algo errado.")
@@ -312,7 +337,7 @@ with aba_faturas:
             st.divider()
             st.write(f"### Total da Fatura: R$ {total_mes:.2f}")
 
-            # --- LÓGICA DE CONTROLE DE PAGAMENTO CORRIGIDA ---
+            # Lógica Anti-Bug de Número Negativo e Crédito
             if total_mes < -0.01:
                 st.success(f"🎉 CRÉDITO! Ela tem R$ {abs(total_mes):.2f} de crédito neste mês (Carro/Acerto).")
             elif falta_pagar <= 0.01 and total_mes > 0:
@@ -327,8 +352,7 @@ with aba_faturas:
                     st.warning(f"⚠️ Atenção: Ela já pagou R$ {ja_pagou:.2f}. Ainda falta R$ {falta_pagar:.2f}.")
                 
                 c_val, c_btn = st.columns([1.5, 1])
-                
-                # A PROTEÇÃO: max(0.0, float(falta_pagar)) garante que nunca tente colocar valor negativo na caixinha
+                # Garante que o input nunca tente iniciar com número menor que 0
                 valor_seguro = max(0.0, float(falta_pagar))
                 v_recebido = c_val.number_input("Pix Recebido (R$)", min_value=0.0, value=valor_seguro, key=f"rec_{menina}")
                 

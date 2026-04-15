@@ -309,22 +309,29 @@ with aba_faturas:
             if car_d > 0 or car_r > 0:
                 st.write(f"• Caronas: Usou R$ {car_d:.2f} | Recebeu R$ {car_r:.2f}")
             
-            st.divider()
+           st.divider()
             st.write(f"### Total da Fatura: R$ {total_mes:.2f}")
 
-            if falta_pagar <= 0.01 and total_mes > 0:
+            # --- LÓGICA DE CONTROLE DE PAGAMENTO CORRIGIDA ---
+            if total_mes < -0.01:
+                st.success(f"🎉 CRÉDITO! Ela tem R$ {abs(total_mes):.2f} de crédito neste mês (Carro/Acerto).")
+            elif falta_pagar <= 0.01 and total_mes > 0:
                 st.success("✅ FATURA QUITADA! Tudo certo este mês.")
                 if st.button("Estornar Pagamentos (Erro)", key=f"estorno_{menina}"):
                     supabase.table("mensalidades_hand").delete().eq("nome", menina).eq("mes", mes_ref).eq("ano", ano_ref).execute()
                     st.rerun()
-            elif total_mes == 0:
-                st.info("Nenhum custo neste mês.")
+            elif total_mes >= -0.01 and total_mes <= 0.01:
+                st.info("Nenhum custo neste mês (Fatura Zerada).")
             else:
                 if ja_pagou > 0:
                     st.warning(f"⚠️ Atenção: Ela já pagou R$ {ja_pagou:.2f}. Ainda falta R$ {falta_pagar:.2f}.")
                 
                 c_val, c_btn = st.columns([1.5, 1])
-                v_recebido = c_val.number_input("Pix Recebido (R$)", min_value=0.0, value=float(falta_pagar), key=f"rec_{menina}")
+                
+                # A PROTEÇÃO: max(0.0, float(falta_pagar)) garante que nunca tente colocar valor negativo na caixinha
+                valor_seguro = max(0.0, float(falta_pagar))
+                v_recebido = c_val.number_input("Pix Recebido (R$)", min_value=0.0, value=valor_seguro, key=f"rec_{menina}")
+                
                 if c_btn.button("Dar Baixa 💸", key=f"btn_{menina}", type="primary"):
                     if v_recebido > 0:
                         supabase.table("mensalidades_hand").insert({"nome": menina, "mes": mes_ref, "ano": ano_ref, "valor": v_recebido}).execute()
